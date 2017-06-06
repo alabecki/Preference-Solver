@@ -52,28 +52,68 @@ def obtain_atomic_formulas(file):
 def construct_rules_dict(file):
 	lines = []
 	for line in file:
+		if line.startswith("("):
+			#line.replace(" ", "")			#any line starting with a "(" is interpreted as a rule
+			line = re.sub(r'\s+', '', line)
+			print("Print line: %s" % (line))
+			lines.append(line.strip())
+	steps = []
+	for line in lines:
+		steps.append(re.split("->|\$", line))
+			#i = re.sub(r'\s+', '', i)
+	for step in steps:
+		print("step: %s " % (step))
+		#print("[0], [1] %s %s " % (step[0], step[1]))
+		#if len(step[0]) > 1:
+		step[0] = step[0][1:]
+		#else:
+			#step[0] = step[0].replace("()", " ")
+			#step[0] = step[0][0:0]
+		print(len(step))
+		print (len(step[1]))
+		step[1] = step[1][:-1]
+		print("[0], [1] %s %s " % (step[0], step[1]))
+	rules = {}
+	count = 0
+	for line in steps:
+		name = "r" + str(count)
+		if len(line) == 2:
+			item = line[0] + " -> " + line[1]
+			new = Rule(name, item, line[0], line[1])
+		if len(line) == 3:
+			print("Three...")
+			item = line[0] + " -> " + line[1] +  " " + line[2]
+			new = Rule(name, item, line[0], line[1], float(line[2]))
+		rules.update({name: new})
+		count += 1
+	return rules
+
+
+
+def add_rules_from_file(file, rules):
+	lines = []
+	for line in file:
 		if line.startswith("("):				#any line starting with a "(" is interpreted as a rule
 			lines.append(line.strip())
 	temp1 = [line[1:] for line in lines]		#remove "(" at the beginning of the rule
 	temp2 = [line[:-1] for line in temp1]		#remove the ")" at the end of the rule
-	temp3 = [line.split(",") for line in temp2]		#split into body and head
-	rules = {}										#rules will be kept in a dictionary for easy look-up
-	count = 0										#used to assign each rule with a unique name
+	temp3 = [line.split("->") for line in temp2]
+	count = len(rules.keys())										#used to assign each rule with a unique name
 	for line in temp3:
-		item = line[0] + "," + line[1]				#stores the original rule
+		item = line[0] + "->" + line[1]				#stores the original rule
 		name = "r" + str(count)						#gives each rule a unique name "r" plus an integer
 		new = Rule(name, item, line[0], line[1])	#creates a new Rule object there line[0] and line[1] are the body and head
 		rules.update({name: new})					#adds the new rule to the dictionary of rules
 		count += 1
-	return rules
+
 
 def add_rule(rule, rules):
 	count = len(rules)
 	temp1 = rule[1:]
 	temp2 = temp1[:-1]
-	temp3 = temp2.split(",")
+	temp3 = temp2.split("->")
 	#print("New body: %s, new head: %s \n" % (temp3[0], temp3[1]))
-	item = temp3[0] + "," + temp3[1]
+	item = temp3[0] + "->" + temp3[1]
 	name = "r" + str(count)
 	new = Rule(name, item, temp3[0], temp3[1])
 	rules.update({name: new})
@@ -85,13 +125,27 @@ def add_constraints(file):
 		if line.startswith("!"):
 			lines.append(line.strip())
 		#for line in lines:
-			#print(line)
 	temp1 = [line[1:] for line in lines]		#remove "!(" at the beginning of the rule
 	#temp2 = [line[:-1] for line in temp1]		#remove the ")" at the end of the rule
 	constraints = {}
 	count = 0
 	for line in temp1:
 		#print(temp1)
+		name = "c" + str(count)
+		new = Constraint(name, line)
+		constraints.update({name: new})
+		count += 1
+	return constraints
+
+def add_constraints_from_file(file, constraints):
+	lines = []
+	for line in file:
+		if line.startswith("!"):
+			lines.append(line.strip())
+	temp1 = [line[1:] for line in lines]		#remove "!(" at the beginning of the rule
+	#temp2 = [line[:-1] for line in temp1]		#remove the ")" at the end of the rule
+	count = len(constraints )
+	for line in temp1:
 		name = "c" + str(count)
 		new = Constraint(name, line)
 		constraints.update({name: new})
@@ -124,7 +178,7 @@ def construct_worlds(propositions):
 
 def assign_extensions(formula, worlds, propositions):
 	extension = []
-	if str(formula).isspace():			#if the formula is empty it will be treated as a toutology
+	if str(formula).isspace() or len(formula) == 0:			#if the formula is empty it will be treated as a toutology
 		#print("Check Empty\n")
 		for w in worlds.values():
 			extension.append(w.state)
@@ -136,48 +190,48 @@ def assign_extensions(formula, worlds, propositions):
 			props_in_formula.add(add)
 		props_not_in_form = propositions.difference(props_in_formula)	#Determine which propositions are missing from the rule's body
 		supplement = Symbol('')
-		#print("Formula: %s " % (formula))
-		#print("Formula: %s \n " % (formula))
-		#print("Prop not in form: %s \n " % (props_not_in_form))
+		print(formula)
 		form_cnf = to_cnf(formula)
-		#print("cnf: %s \n " % (form_cnf))
-		print(form_cnf)
 		for p in props_not_in_form:
-			supplement = Or(p, Not(p))
-			#print("form_cnf: %s, supplement: %s \n" % (form_cnf, supplement) )							#Loop aguments (P | ~P) for each P not found in body
+			supplement = Or(p, Not(p))							#Loop aguments (P | ~P) for each P not found in body
 			form_cnf = And(form_cnf, supplement)
 		#print("__form_cnf: %s \n" % (form_cnf))
-		#print(form_cnf)
 		form_SAT = satisfiable(form_cnf, all_models = True)  #The sympy SAT solver is applied to the augmented formula
 		form_SAT_list = list(form_SAT)				       #the ouput of satisfiable() is an itterator object so we turn it into a list
 		if(len(form_SAT_list) == 1 and form_SAT_list[0] == False):		#check to handle inconsistencies
 			extension = []
 			return extension
 		else:
-			for state in form_SAT_list:			#We now turn each state in which the body is true into a dictionary so that
+			for state in form_SAT_list:		#We now turn each state in which the body is true into a dictionary so that
 				new = {}						#they may be directly compared with each world state
+				#if get_world_from_state(state, worlds) == None:
+					#continue
+				#else:
 				for key, value in state.items():
 					new[key] = value
-				extension.append(new)
+					extension.append(new)
 	return extension
 
 
 # Now that that head/body of each rule is assigned a set of world states, we can determine the domination relation
 #in each world in a straightforward manner in terms of the definition of the relation
-def domination_relations(rules, dominations):
+def domination_relations(rules):
 	print("Calculating Domination Relations___________________________________________________________________________________\n")
+	dominations = set()
 	for k1, r1 in rules.items():	#and compare each rule with each of the others
 		for k2, r2 in rules.items():
 				#The following simply applies the definition of rule domination to the extensions of the rules in each world
 				#First check for "improper" domination
-				#r1b = set(r1.bodyExtension)
-				#r2b = set(r2.bodyExtension)
 			#print(r1.body, r2.body)
-			if (str(r1.body).isspace() and str(r2.body).isspace() ):
+			if not r1.body and not r2.body:
+				#(str(r1.body).isspace() or str(r2.body).isspace() ):
+				print("Check empty")
 				continue
-			if str(r1.body).isspace():
+			#if str(r1.body).isspace():
+			if not r1.body:
 				continue
-			elif str(r2.body).isspace():
+			elif not r2.body:
+			#str(r2.body).isspace():
 				r1h_cnf = to_cnf(r1.head)
 				r2h_cnf = to_cnf(r2.head)
 				temp3 = And(r1h_cnf, r2h_cnf )
@@ -186,7 +240,9 @@ def domination_relations(rules, dominations):
 					r2.dominatedBy.add(r1)
 			#	print("Check if either one has empty body")
 			else:
+				print("r2 body: %s" % (r1.body))
 				r1b_cnf = to_cnf(r1.body)
+				print("r2 body: %s" % (r2.body))
 				r2b_cnf = to_cnf(r2.body)
 				r1h_cnf = to_cnf(r1.head)
 				r2h_cnf = to_cnf(r2.head)
@@ -198,12 +254,8 @@ def domination_relations(rules, dominations):
 				notbothheads = Not(temp3)
 				#print("First: %s, %s \n" % (r1b_r2b, notbothheads) )
 				if((valid(r1b_r2b) == True) and valid(notbothheads) == True):
-					#print("D Check 2\n")
-					#print("Second: %s, %s \n" % (r2b_r1b, notbothheads))
 					if(valid(r2b_r1b) == False or valid(notbothheads) == False):
-						#print("D Check 3\n")
 						new = (r1.name, r2.name)
-
 						dominations.add(new)
 						if (r2.item != r1.item):
 							r2.dominatedBy.add(r1)
@@ -211,7 +263,7 @@ def domination_relations(rules, dominations):
 # We use the extensions assigned to rules and the domination relations to determine which rules are violated in each world
 def dom_dom_check(world, rule, flag):
 	for dom in rule.dominatedBy:
-		#print("Dominated by %s\n" % (dom.name))
+		#print("Dominated by %s\n" % (dom.name
 		if(world.state not in dom.bodyExtension):
 			#print("In recursion: this dom %s is neutral \n" % (dom.name))
 			continue
@@ -225,38 +277,52 @@ def dom_dom_check(world, rule, flag):
 	return flag
 
 
-def assign_rule_violations(worlds, rules, dominations):
+def assign_rule_violations(worlds, rules):
 	print("Assigning rule violations ________________________________________________________________________________")
 	for world in worlds.values():
-		#print(world.state)
 		for k, rule in rules.items():
-			#print(k)
 			#First check if the rule is False in the world under consideration
 			if(world.state in rule.bodyExtension and world.state not in rule.headExtension):
-				#print("%s is false in %s \n" % (rule.name, world.state ))
+			#Now make sure that, if the rule is dominated by any other rules in this world, then that other rule
+			#is Neutral in this world.
+				if len(rule.dominatedBy) == 0:
+					world.F.add(k)
+					world.weightedF += rule.weight
+				else:
+					flag = False
+					for dom in rule.dominatedBy:
+						if (world.state in dom.bodyExtension):
+							flag = True
+					if flag == False:
+						world.F.add(k)
+						world.weightedF += rule.weight
+
+
+def assign_rule_violations_recursive(worlds, rules, dominations):
+	print("Assigning rule violations ________________________________________________________________________________")
+	for world in worlds.values():
+		for k, rule in rules.items():
+			#First check if the rule is False in the world under consideration
+			if(world.state in rule.bodyExtension and world.state not in rule.headExtension):
 			#Now make sure that, if the rule is dominated by any other rules in this world, then that other rule
 			#is Neutral in this world.
 				flag = 0
 				for dom in rule.dominatedBy:
-					#print("Next dom: %s \n " % (dom.name))
 					if (world.state not in dom.bodyExtension):
-						#print("This dom %s neutral \n" % (dom.name))
 						continue
-					#print("About to send %s into recursion \n" % (dom.name))
 					flag += 1
 					#print("Flag before recusion %s \n" % (flag))
 					flag = dom_dom_check(world, dom, flag)
 					#print("Just got back from recusion and flag is %s \n" % (flag))
 				if flag % 2 == 0:
-					#print("Final Flag: %s \b" % (flag))
-					#print("%s violates %s \n" % (world.state, k))
 					world.F.add(k)
+					world.weightedF += rule.weight
 				else:
 					continue
 
 # We use the violation set F to see which worlds are best. Given the set of F (rule violations) for each world w, w1 is a "best" world if
 # and only if there is no world w2 such that w1.F is a proper subset of w2.F (proper subset is used because we want to # find those members that minimal according to the partial preorder defined in Definition 3.6)
-def find_best_world(worlds):
+def best_worlds_by_subset(worlds):
 	best_worlds = {}
 	for w1 in worlds.values():
 		check = True
@@ -267,6 +333,27 @@ def find_best_world(worlds):
 			best_worlds[w1.name] = w1
 			#best_worlds.add(w1.name)
 	return best_worlds
+
+def best_worlds_by_cardinality(worlds):
+	best_worlds = {}
+	sorted_worlds = sorted(worlds.values(), key =lambda x: len(x.F))
+	best = len(sorted_worlds[0].F)
+	for i in sorted_worlds:
+		if(len(i.F) > best):
+			return best_worlds
+		else:
+			best_worlds[i.name] = i
+
+def best_worlds_by_weighted_cardinality(worlds):
+	best_worlds = {}
+	sorted_worlds = sorted(worlds.values(), key =lambda x: x.weightedF)
+	best = sorted_worlds[0].weightedF
+	for w in sorted_worlds:
+		print(w.weightedF)
+		if w.weightedF > best:
+			return best_worlds
+		else:
+			best_worlds[w.name] = w
 
 def add_proposition(propositions, p):
 	for char in p:
@@ -291,22 +378,7 @@ def reconstruct_worlds(propositions, constraints):
 	return worlds2
 
 
-#def get_min_F(f_ext, worlds):
-	#sorted_worlds = sorted(worlds.values(), key = lambda x: len(x.F))
-	#card = 1000
-	#for w in sorted_worlds:
-	#	if w.state in f_ext:
-	#		if len(w.F) < card:
-	#			card = len(w.F)
-	#f_min = set()
-#	print("check")
-#	for w, world in worlds.items():
-	#	if len(world.F) == card and world.state in f_ext:
-		#	f_min.add(world)
-#	print( "\n")
-	#return f_min
-
-def get_min_F(f_ext, worlds):
+def get_min_F_subset(f_ext, worlds):
 	f_min = set()
 	for e1 in f_ext:
 		w1 = get_world_from_state(e1, worlds)
@@ -316,6 +388,32 @@ def get_min_F(f_ext, worlds):
 			if worlds[w2].F < worlds[w1].F:
 				f_min.remove(worlds[w1])
 				break
+	return f_min
+
+def get_min_F_weight(f_ext, worlds):
+	f_min = set()
+	best = 99999999
+	for w in f_ext:
+		world = get_world_from_state(w, worlds)
+		if worlds[world].weightedF < best:
+			best = worlds[world].weightedF
+	for w in f_ext:
+		world = get_world_from_state(w, worlds)
+		if worlds[world].weightedF == best:
+			f_min.add(worlds[world])
+	return f_min
+
+def get_min_F_card(f_ext, worlds):
+	f_min = set()
+	best = 99999999
+	for w in f_ext:
+		world = get_world_from_state(w, worlds)
+		if len(worlds[world].F) < best:
+			best = len(worlds[world].F)
+	for w in f_ext:
+		world = get_world_from_state(w, worlds)
+		if len(worlds[world].F) == best:
+			f_min.add(worlds[world])
 	return f_min
 
 
@@ -349,20 +447,13 @@ def implicit_rule(r, worlds, worlds2, propositions2, rules2):
 	for k, rule in rules2.items():
 		rule.bodyExtension = assign_extensions(rule.body, worlds2, propositions2)
 		rule.headExtension = assign_extensions(rule.head, worlds2, propositions2)
-	dominations2 = set()
-	domination_relations(rules2, dominations2)
-	assign_rule_violations(worlds2, rules2, dominations2)
+	domination_relations(rules2)
+	assign_rule_violations(worlds2, rules2)
 
 	flag = True
 	for w2i, world2i in worlds2.items():
-		print(w2i, world2i.state)
 		for w2j, world2j in worlds2.items():
-			print(w2j, world2j.state)
 			if world2i.F < world2j.F:
-				print("new")
-				print(w2i, world2i.F, w2j, world2j.F)
-				print("old")
-				print(worlds[w2i].F, worlds[w2j].F)
 				if worlds[w2i].F >= worlds[w2j].F:
 					flag = False
 					return flag

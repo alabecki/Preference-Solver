@@ -1,23 +1,37 @@
 #Query Functions
 
+from copy import deepcopy
+
 #Since the F attribute of worlds is a set (the set of rules violated by a world) we can compare different worlds through
 #set operations with respect to F
-def compare_worlds(u, v, worlds):
-	#a = int(u[1:])
-	#b = int(v[2:])
+def compare_worlds_by_subset(u, v, worlds):
 	v = v.lstrip()
-	#print("Test: %s, %s \n" % (a, b))
-	if(worlds[u].F == worlds[v].F):
-		print("%s and %s are equally preferable \n," % (worlds[u].name, worlds[v].name))
-		return
-	elif (worlds[u].F >= worlds[v].F):
+	if (worlds[u].F >= worlds[v].F):
 		print("%s is preferable to %s \n" % (worlds[u].name, worlds[v].name))
 		return
-	elif worlds[v].F >= worlds[u].F:
+	elif worlds[v].F > worlds[u].F:
 		print("%s is preferable to %s \n" % (worlds[u].name, worlds[v].name))
 		return
 	else:
 		print("%s and %s are not comparable in terms of preference \n" % (worlds[u].name, worlds[v].name))
+		return
+
+def compare_worlds_by_cardinality(u, v, worlds):
+	v = v.lstrip()
+	if (len(worlds[u].F) >= len(worlds[v].F)):
+		print("%s is preferable to %s \n" % (worlds[u].name, worlds[v].name))
+		return
+	elif len(worlds[v].F) >= len(worlds[u].F):
+		print("%s is preferable to %s \n" % (worlds[u].name, worlds[v].name))
+		return
+
+def compare_worlds_by_weighted_cardinality(u, v, worlds):
+	v = vlstrip()
+	if(worlds[u].weightedF <= worlds[v].weightedF):
+		print(" %s is preferable to %s \n " % (worlds[u].name, worlds[v].name))
+		return
+	elif (worlds[v].weightedF <= worlds[u].weightedF):
+		print("%s is preferable to %s \n" % (worlds[u].name, worlds[v].name))
 		return
 
 
@@ -56,8 +70,11 @@ def find_rule_false(rule_name, rules, worlds):
 #object corresponding to that state
 def get_world_from_state(_state, worlds):
 	result = ''
+#	print("State " + str(_state))
 	for world in worlds.values():
+		#print("World " + str(world.state))
 		if world.state == _state:
+	#		print("check")
 			result = world.name
 			return result
 
@@ -104,23 +121,44 @@ def print_rules_neutral_at_w(_world, rules, worlds):
 			result.append(rule.name)
 	return result
 
-def worst_worlds(worlds):
-	most_violated = []
-	#worlds.sort(key=lambda x: len(x.F), reverse=True)
+def worst_worlds_by_subset(worlds):
+	most_violated = deepcopy(worlds)
+	for w1, world1 in worlds.items():
+		for w2, world2 in worlds.items():
+			if world2.F > world1.F:
+				del most_violated[w1]
+				break
+	return most_violated
+
+def worst_worlds_by_cardinality(worlds):
+	most_violated = { }
 	sorted_worlds = sorted(worlds.values(), key = lambda x: len(x.F), reverse = True)
-	#orted(data.items(), key=lambda x:x[1])
-	#sorted_x = sorted(x.items(), key=operator.itemgetter(1))
-	#most = len(worlds[0].F)
-	#print("Most: %s \n")
-	most = sorted_worlds[0].F
+	most = len(sorted_worlds[0].F)
 	cont = True
 	for i in sorted_worlds:
-		#print("World: %s, has F: %s \n" % (i.name, i.F))
-		if(i.F) < most:
-		#if( len(i.F) < most ):
+		print("World: %s, has F: %s \n" % (i.name, i.F))
+		if( len(i.F) < most ):
+			print("go\n")
 			return most_violated
 		else:
-			most_violated.append(i)
+			print("Stay \n")
+			most_violated[i.name] = i
+
+def worst_worlds_by_weighted_cardinality(worlds):
+	most_violated = { }
+	sorted_worlds = sorted(worlds.values(), key = lambda x: x.weightedF, reverse = True)
+	most = sorted_worlds[0].weightedF
+	cont = True
+	for w in sorted_worlds:
+		print("World: %s, has F: %s \n" % (w.name, w.F))
+		if w.weightedF < most:
+			print("go\n")
+			return most_violated
+		else:
+			print("Stay \n")
+			most_violated[w.name] = w
+
+
 
 def dom_of_r_in_w(_rule, _world, rules, worlds):
 	result = []
